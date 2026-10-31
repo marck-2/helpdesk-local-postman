@@ -1,0 +1,29 @@
+:root {
+  color-scheme: dark;
+
+  --background: #0b1120;
+  --surface: #111827;
+  --surface-light: #1e293b;
+  --border: #29364d;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --primary: #22b8d6;
+  --primary-hover: #0ea5c6;
+  --on-primary: #06222a;
+
+  --status-open: #6f9df6;
+  --status-progress: #f5ae3d;
+  --status-pending: #9d7cf4;
+  --status-resolved: #4ec88b;
+
+  --danger: #ef4444;
+  --danger-text: #ff8a8a;
+  --warning: #f5ae3d;
+  --success: #22c55e;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 24px -14px rgba(0, 0, 0, 0.7);
+  --largura-menu: 248px;
+  --fonte: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}

@@ -1,0 +1,2952 @@
+{
+  "info": {
+    "name": "HelpDesk Local - Cenário completo de testes da API",
+    "description": "# HelpDesk Local: cenário completo de testes\n\nColeção de testes da API do **HelpDesk Local** (Django REST Framework). Serve para **apresentar o Postman** com um sistema real: o front-end React consome a mesma API que o Postman testa.\n\n## Antes de começar\n1. Ligue o servidor Django na pasta do projeto: `python manage.py runserver` (API em `http://127.0.0.1:8000`).\n2. (Opcional, para a demonstração) Ligue o front-end: `cd frontend` e `npm run dev` (sistema em `http://127.0.0.1:5173`).\n3. A variável `base_url` já aponta para `http://127.0.0.1:8000`.\n\n## Pastas\n| Pasta | Para que serve |\n|---|---|\n| 1. Demonstração principal (CRUD) | As 4 abas da apresentação: GET, POST, PUT, DELETE |\n| 2. Extras | Buscar por ID, PATCH, OPTIONS e a prova do 404 |\n| 3. Filtros, busca e resumo | Query strings e endpoint de resumo |\n| 4. Clientes e interações | Relacionamentos e regras 409 e cascade |\n| 5. Erros e validações | 400, 404, 405 e 415 de propósito |\n| 6. Segurança | SQL Injection, XSS, CORS, LGPD |\n| 7. Limpeza | Apaga o que a coleção criou |\n\n## Como rodar tudo de uma vez\nClique com o botão direito na coleção, escolha **Run collection** e depois **Run**. Todos os testes devem ficar verdes.\n\n## Variáveis\n| Variável | Para que serve |\n|---|---|\n| `base_url` | Endereço do servidor |\n| `chamado_id`, `teste_id`, `erro_id`, `filtro_id`, `chamado_cliente_id` | IDs de chamados guardados automaticamente pelos POSTs |\n| `cliente_id`, `seg_cliente_id` | IDs de clientes |\n| `interacao_id`, `interacao2_id` | IDs de interações |\n| `ids_limpeza`, `clientes_limpeza` | Listas do que deve ser apagado no final |\n| `titulo_longo` | Texto de 151 caracteres gerado na hora |\n\n## Convenções\n- Nome começando com **✔**: problema antigo que já foi corrigido.\n- Nome começando com **⚠**: achado de auditoria (comportamento atual que merece melhoria).\n- Tudo que a coleção cria começa com **[TESTE]** e é apagado na pasta 7.\n\nCada pasta tem uma **documentação própria**: clique na pasta e abra a aba de descrição (Overview).\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Demonstração principal (CRUD)",
+      "item": [
+        {
+          "name": "1. Listar Chamados (GET)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('A resposta é uma lista (array)', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('Content-Type é JSON', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json'));",
+                  "pm.test('Respondeu em menos de 1000 ms', () => pm.expect(pm.response.responseTime).to.be.below(1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "GET = buscar. Lista todos os chamados cadastrados."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Abrir Chamado (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('ID gerado automaticamente pelo sistema', () => pm.expect(j.id).to.be.a('number'));",
+                  "pm.test('Título confere com o enviado', () => pm.expect(j.titulo).to.eql('Computador não liga'));",
+                  "pm.test('Status inicial é Aberto', () => pm.expect(j.status).to.eql('Aberto'));",
+                  "pm.test('Prioridade confere com a enviada (Alta)', () => pm.expect(j.prioridade).to.eql('Alta'));",
+                  "pm.test('data_abertura preenchida pelo sistema', () => pm.expect(j.data_abertura).to.be.a('string').and.not.empty);",
+                  "pm.test('Chamado nasce sem cliente (campo opcional)', () => pm.expect(j.cliente).to.be.null);",
+                  "if (j.id) { pm.collectionVariables.set('chamado_id', j.id); track('ids_limpeza', j.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "POST = criar. O ID do chamado criado é guardado na variável {{chamado_id}} e usado nas abas 3 e 4.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Computador não liga\",\n  \"descricao\": \"A máquina da recepção parou de funcionar após queda de energia.\",\n  \"status\": \"Aberto\",\n  \"prioridade\": \"Alta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Atualizar Chamado (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status agora é Resolvido', () => pm.expect(j.status).to.eql('Resolvido'));",
+                  "pm.test('Mesmo ID do chamado criado', () => pm.expect(j.id).to.eql(Number(pm.collectionVariables.get('chamado_id'))));",
+                  "pm.test('Data de abertura não mudou', () => pm.expect(j.data_abertura).to.be.a('string').and.not.empty);",
+                  "pm.test('data_atualizacao é preenchida pelo sistema', () => pm.expect(j.data_atualizacao).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{chamado_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{chamado_id}}",
+                ""
+              ]
+            },
+            "description": "PUT = atualizar. Envia o chamado completo com o status alterado para Resolvido.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Computador não liga\",\n  \"descricao\": \"A máquina da recepção parou de funcionar após queda de energia.\",\n  \"status\": \"Resolvido\",\n  \"prioridade\": \"Alta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Apagar Chamado (DELETE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204 No Content', () => pm.response.to.have.status(204));",
+                  "pm.test('Resposta vazia (sem corpo)', () => pm.expect(pm.response.text()).to.eql(''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{chamado_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{chamado_id}}",
+                ""
+              ]
+            },
+            "description": "DELETE = apagar. Remove apenas o chamado criado na aba 2."
+          },
+          "response": []
+        }
+      ],
+      "description": "# 1. Demonstração principal (CRUD)\n\n## O que esta pasta faz\nSão as **4 abas da apresentação**: listar, criar, atualizar e apagar um chamado. Cada aba usa um método HTTP diferente e juntas formam o **CRUD** (Create, Read, Update, Delete).\n\n## Como executar\nClique em **Send** na ordem **1 → 2 → 3 → 4**. O POST (aba 2) guarda o `id` do chamado criado na variável `{{chamado_id}}`, e as abas 3 e 4 usam essa variável na URL. Por isso a ordem importa.\n\n## O que cada aba mostra\n| Aba | Método | Endereço | Resultado esperado |\n|---|---|---|---|\n| 1. Listar Chamados | GET | `/api/chamados/` | **200 OK** e uma lista (array) de chamados |\n| 2. Abrir Chamado | POST | `/api/chamados/` | **201 Created**; o sistema gera `id` e `data_abertura` |\n| 3. Atualizar Chamado | PUT | `/api/chamados/{{chamado_id}}/` | **200 OK**; status passa a `Resolvido` |\n| 4. Apagar Chamado | DELETE | `/api/chamados/{{chamado_id}}/` | **204 No Content** (sem corpo) |\n\n## Testes automáticos (aba Test Results)\n- Código de status correto em cada aba.\n- A lista é um array, em JSON, e responde em menos de 1000 ms.\n- O POST devolve `id` numérico, título e prioridade iguais aos enviados, status inicial `Aberto`, datas preenchidas pelo sistema e `cliente` vazio (o vínculo com cliente é opcional).\n- O PUT devolve o mesmo `id` e o status `Resolvido`.\n- O DELETE devolve corpo vazio.\n\n## O que falar\n\"GET busca, POST cria, PUT atualiza e DELETE apaga. Repare que eu só mando o título, a descrição, o status e a prioridade. O `id` e a data quem cria é o servidor.\"\n\n## Dica para a demonstração com o front-end\nAbra o sistema React ao lado. Depois do POST, clique em **Atualizar chamados** (ou ligue a atualização automática) e mostre o cartão novo na coluna *Aberto*. Depois do PUT, mostre o cartão em *Resolvido*. Depois do DELETE, mostre que ele sumiu.\n"
+    },
+    {
+      "name": "2. Extras (cobertura completa da API)",
+      "item": [
+        {
+          "name": "Preparar: criar chamado de teste (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "if (j.id) { pm.collectionVariables.set('teste_id', j.id); track('ids_limpeza', j.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Chamado para testes extras\",\n  \"descricao\": \"Criado automaticamente pela coleção.\",\n  \"status\": \"Aberto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar chamado por ID (GET)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Retornou o chamado certo', () => pm.expect(j.id).to.eql(Number(pm.collectionVariables.get('teste_id'))));",
+                  "pm.test('Tem todos os campos', () => pm.expect(j).to.include.all.keys('id', 'titulo', 'descricao', 'status', 'prioridade', 'cliente', 'data_abertura', 'data_atualizacao'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{teste_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{teste_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar só o status (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status mudou para Em andamento', () => pm.expect(j.status).to.eql('Em andamento'));",
+                  "pm.test('Título foi preservado (atualização parcial)', () => pm.expect(j.titulo).to.eql('[TESTE] Chamado para testes extras'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{teste_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{teste_id}}",
+                ""
+              ]
+            },
+            "description": "PATCH = atualização parcial: só envia o campo que muda (diferente do PUT, que exige o objeto completo).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Em andamento\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Ver métodos permitidos (OPTIONS)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "const allow = pm.response.headers.get('Allow') || '';",
+                  "pm.test('Permite GET e POST na lista', () => { pm.expect(allow).to.include('GET'); pm.expect(allow).to.include('POST'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Apagar o chamado de teste (DELETE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{teste_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{teste_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Confirmar que foi apagado (GET → 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found (chamado não existe mais)', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{teste_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{teste_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "# 2. Extras (cobertura completa da API)\n\n## O que esta pasta faz\nCobre o que o CRUD básico da pasta 1 não mostra: **buscar um chamado por ID**, **PATCH** (atualização parcial), **OPTIONS** (que métodos a URL aceita) e a **prova de que o DELETE funcionou** (o mesmo ID passa a dar 404).\n\n## Como executar\nRode na ordem. A primeira requisição cria um chamado `[TESTE]` e guarda o ID em `{{teste_id}}`; as seguintes usam esse ID.\n\n## O que cada requisição mostra\n| Requisição | Método | Resultado esperado |\n|---|---|---|\n| Preparar: criar chamado de teste | POST | **201 Created**; guarda `{{teste_id}}` |\n| Buscar chamado por ID | GET | **200 OK**; devolve o chamado certo com todos os campos |\n| Atualizar só o status | PATCH | **200 OK**; muda só o status, o resto fica igual |\n| Ver métodos permitidos | OPTIONS | **200 OK**; cabeçalho `Allow` com GET e POST |\n| Apagar o chamado de teste | DELETE | **204 No Content** |\n| Confirmar que foi apagado | GET | **404 Not Found** |\n\n## PUT x PATCH (pergunta comum)\n- **PUT** troca o objeto inteiro: precisa enviar `titulo` e `descricao`.\n- **PATCH** troca só o que você mandar. É o que o quadro do sistema usa ao arrastar um cartão de coluna (só o `status`).\n\n## O que falar\n\"Agora o que dá para fazer além do básico: buscar um chamado só, mudar um campo só, perguntar à API quais métodos ela aceita e provar que o delete funcionou: o mesmo endereço agora responde 404.\"\n"
+    },
+    {
+      "name": "3. Filtros, busca e resumo",
+      "item": [
+        {
+          "name": "Preparar: criar chamado para os filtros (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "if (j.id) { pm.collectionVariables.set('filtro_id', j.id); track('ids_limpeza', j.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Servidor de arquivos fora do ar\",\n  \"descricao\": \"Ninguém consegue abrir as pastas compartilhadas.\",\n  \"status\": \"Em andamento\",\n  \"prioridade\": \"Alta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Filtrar por status (?status=Em andamento)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Todos os chamados retornados estão Em andamento', () => pm.expect(j.every(c => c.status === 'Em andamento')).to.be.true);",
+                  "pm.test('O chamado de teste está na lista', () => pm.expect(j.map(c => c.id)).to.include(Number(pm.collectionVariables.get('filtro_id'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/?status=Em%20andamento",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Em andamento"
+                }
+              ]
+            },
+            "description": "Filtro opcional da listagem: devolve só os chamados com esse status."
+          },
+          "response": []
+        },
+        {
+          "name": "Filtrar por prioridade (?prioridade=Alta)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Todos os chamados retornados têm prioridade Alta', () => pm.expect(j.every(c => c.prioridade === 'Alta')).to.be.true);",
+                  "pm.test('O chamado de teste está na lista', () => pm.expect(j.map(c => c.id)).to.include(Number(pm.collectionVariables.get('filtro_id'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/?prioridade=Alta",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "prioridade",
+                  "value": "Alta"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Combinar filtros (status + prioridade)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Todos satisfazem os dois filtros ao mesmo tempo', () => pm.expect(j.every(c => c.status === 'Em andamento' && c.prioridade === 'Alta')).to.be.true);",
+                  "pm.test('O chamado de teste está na lista', () => pm.expect(j.map(c => c.id)).to.include(Number(pm.collectionVariables.get('filtro_id'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/?status=Em%20andamento&prioridade=Alta",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Em andamento"
+                },
+                {
+                  "key": "prioridade",
+                  "value": "Alta"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar por texto (?busca=servidor de arquivos)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Todos citam o texto no título ou na descrição', () => pm.expect(j.every(c => (c.titulo + ' ' + c.descricao).toLowerCase().includes('servidor de arquivos'))).to.be.true);",
+                  "pm.test('O chamado de teste está na lista', () => pm.expect(j.map(c => c.id)).to.include(Number(pm.collectionVariables.get('filtro_id'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/?busca=servidor%20de%20arquivos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "busca",
+                  "value": "servidor de arquivos"
+                }
+              ]
+            },
+            "description": "A busca ignora maiúsculas e minúsculas e procura no título e na descrição."
+          },
+          "response": []
+        },
+        {
+          "name": "Busca sem resultado → lista vazia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK (busca sem resultado não é erro)', () => pm.response.to.have.status(200));",
+                  "pm.test('Retorna lista vazia []', () => pm.expect(pm.response.json()).to.eql([]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/?busca=zzzxyzabc123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "busca",
+                  "value": "zzzxyzabc123"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resumo para o painel (GET /resumo/)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Tem total, por_status e por_prioridade', () => pm.expect(j).to.have.all.keys('total', 'por_status', 'por_prioridade'));",
+                  "pm.test('por_status traz os 4 status', () => pm.expect(j.por_status).to.have.all.keys('Aberto', 'Em andamento', 'Pendente', 'Resolvido'));",
+                  "pm.test('por_prioridade traz as 3 prioridades', () => pm.expect(j.por_prioridade).to.have.all.keys('Baixa', 'Média', 'Alta'));",
+                  "pm.test('A soma por status é igual ao total', () => pm.expect(Object.values(j.por_status).reduce((a, b) => a + b, 0)).to.eql(j.total));",
+                  "pm.test('A soma por prioridade é igual ao total', () => pm.expect(Object.values(j.por_prioridade).reduce((a, b) => a + b, 0)).to.eql(j.total));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/resumo/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "resumo",
+                ""
+              ]
+            },
+            "description": "Endpoint extra criado para os cartões de resumo do sistema: totais por status e por prioridade."
+          },
+          "response": []
+        }
+      ],
+      "description": "# 3. Filtros, busca e resumo\n\n## O que esta pasta faz\nMostra que a listagem não é só \"traga tudo\": o `GET /api/chamados/` aceita **filtros na URL** (a parte depois do `?`, chamada de *query string*) e que existe um endpoint de **resumo** usado pelos cartões de totais do sistema.\n\n## Como executar\nRode na ordem. A primeira requisição cria um chamado `[TESTE]` (status *Em andamento*, prioridade *Alta*) e guarda o ID em `{{filtro_id}}`. As demais conferem se ele aparece nos filtros certos.\n\n## Filtros aceitos em /api/chamados/\n| Parâmetro | Exemplo | O que faz |\n|---|---|---|\n| `status` | `?status=Em andamento` | Só os chamados com esse status |\n| `prioridade` | `?prioridade=Alta` | Só os chamados com essa prioridade |\n| `cliente` | `?cliente=3` | Só os chamados desse cliente (testado na pasta 4) |\n| `busca` | `?busca=servidor` | Procura no título e na descrição |\n\nOs filtros podem ser **combinados**: `?status=Aberto&prioridade=Alta`.\n\n## O que cada requisição mostra\n| Requisição | Resultado esperado |\n|---|---|\n| Filtrar por status | **200**; todos os itens têm o status pedido |\n| Filtrar por prioridade | **200**; todos os itens têm a prioridade pedida |\n| Combinar filtros | **200**; todos cumprem os dois filtros |\n| Buscar por texto | **200**; todos citam o texto |\n| Busca sem resultado | **200** com `[]` (lista vazia **não** é erro) |\n| Resumo | **200**; `total`, `por_status` e `por_prioridade`, com somas que batem com o total |\n\n## O que falar\n\"Na prática ninguém quer ver mil chamados de uma vez. Então a API aceita filtros na própria URL. É exatamente isso que o sistema usa para montar o quadro e os cartões de resumo.\"\n"
+    },
+    {
+      "name": "4. Clientes e interações (relacionamentos)",
+      "item": [
+        {
+          "name": "1. Cadastrar cliente (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('ID gerado pelo sistema', () => pm.expect(j.id).to.be.a('number'));",
+                  "pm.test('Cliente nasce ativo', () => pm.expect(j.ativo).to.be.true);",
+                  "pm.test('data_cadastro preenchida pelo sistema', () => pm.expect(j.data_cadastro).to.be.a('string').and.not.empty);",
+                  "if (j.id) { pm.collectionVariables.set('cliente_id', j.id); track('clientes_limpeza', j.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                ""
+              ]
+            },
+            "description": "Cria o cliente e guarda o ID em {{cliente_id}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"[TESTE] Padaria Pão Quente\",\n  \"email\": \"contato@paoquente.com.br\",\n  \"telefone\": \"19 99999-0000\",\n  \"empresa\": \"Pão Quente Ltda\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Abrir chamado vinculado ao cliente (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('O chamado ficou ligado ao cliente criado', () => pm.expect(j.cliente).to.eql(Number(pm.collectionVariables.get('cliente_id'))));",
+                  "if (j.id) { pm.collectionVariables.set('chamado_cliente_id', j.id); track('ids_limpeza', j.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "Chamado com o campo `cliente` (ID do cliente). Guarda o ID em {{chamado_cliente_id}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Caixa sem internet\",\n  \"descricao\": \"O computador do caixa perdeu a conexão com a rede.\",\n  \"prioridade\": \"Alta\",\n  \"cliente\": {{cliente_id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Listar chamados do cliente (?cliente=ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Veio exatamente 1 chamado', () => pm.expect(j).to.have.lengthOf(1));",
+                  "pm.test('Pertence ao cliente filtrado', () => pm.expect(j[0].cliente).to.eql(Number(pm.collectionVariables.get('cliente_id'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/?cliente={{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "cliente",
+                  "value": "{{cliente_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Registrar interação no chamado (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Interação ligada ao chamado certo', () => pm.expect(j.chamado).to.eql(Number(pm.collectionVariables.get('chamado_cliente_id'))));",
+                  "pm.test('Tipo e autor conferem', () => { pm.expect(j.tipo).to.eql('Atendimento'); pm.expect(j.autor).to.eql('Equipe de suporte'); });",
+                  "pm.test('data_criacao preenchida pelo sistema', () => pm.expect(j.data_criacao).to.be.a('string').and.not.empty);",
+                  "if (j.id) pm.collectionVariables.set('interacao_id', j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/interacoes/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "interacoes",
+                ""
+              ]
+            },
+            "description": "Interação = registro do histórico de atendimento. Guarda o ID em {{interacao_id}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chamado\": {{chamado_cliente_id}},\n  \"mensagem\": \"Primeiro contato feito. Cliente orientado a reiniciar o roteador.\",\n  \"tipo\": \"Atendimento\",\n  \"autor\": \"Equipe de suporte\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Listar interações do chamado (?chamado=ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Só interações desse chamado', () => pm.expect(j.every(i => i.chamado === Number(pm.collectionVariables.get('chamado_cliente_id')))).to.be.true);",
+                  "pm.test('A interação criada está na lista', () => pm.expect(j.map(i => i.id)).to.include(Number(pm.collectionVariables.get('interacao_id'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/interacoes/?chamado={{chamado_cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "interacoes",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "chamado",
+                  "value": "{{chamado_cliente_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Corrigir interação (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Mensagem foi corrigida', () => pm.expect(j.mensagem).to.include('Chamado resolvido'));",
+                  "pm.test('Tipo mudou para Solução', () => pm.expect(j.tipo).to.eql('Solução'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/interacoes/{{interacao_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "interacoes",
+                "{{interacao_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensagem\": \"Chamado resolvido: o roteador foi reiniciado e a conexão voltou.\",\n  \"tipo\": \"Solução\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. PUT em interação não é permitido → 405",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 405 Method Not Allowed (interação só aceita POST, PATCH e DELETE, de propósito)', () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/interacoes/{{interacao_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "interacoes",
+                "{{interacao_id}}",
+                ""
+              ]
+            },
+            "description": "Decisão de projeto: o histórico é registrado, corrigido ou removido, mas nunca substituído por inteiro.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chamado\": {{chamado_cliente_id}},\n  \"mensagem\": \"Tentativa de PUT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Apagar interação (DELETE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/interacoes/{{interacao_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "interacoes",
+                "{{interacao_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "9. Registrar uma segunda interação (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "if (j.id) pm.collectionVariables.set('interacao2_id', j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/interacoes/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "interacoes",
+                ""
+              ]
+            },
+            "description": "Esta interação será usada para provar a exclusão em cascata (passo 12).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chamado\": {{chamado_cliente_id}},\n  \"mensagem\": \"Acompanhamento: cliente confirmou que está tudo funcionando.\",\n  \"tipo\": \"Observação\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10. Excluir cliente que tem chamado → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 409 Conflict (cliente com chamados vinculados não pode ser excluído)', () => pm.response.to.have.status(409));",
+                  "pm.test('Mensagem explica o motivo', () => pm.expect(j.detail).to.include('chamados vinculados'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/{{cliente_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "{{cliente_id}}",
+                ""
+              ]
+            },
+            "description": "Proteção de integridade (on_delete=PROTECT): não deixa chamados órfãos."
+          },
+          "response": []
+        },
+        {
+          "name": "11. Marcar cliente como inativo (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Cliente agora está inativo', () => pm.expect(j.ativo).to.be.false);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/{{cliente_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "{{cliente_id}}",
+                ""
+              ]
+            },
+            "description": "A saída recomendada quando o cliente não pode ser apagado: desativar.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ativo\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "12. Listar clientes inativos (?ativo=false)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Todos estão inativos', () => pm.expect(j.every(c => c.ativo === false)).to.be.true);",
+                  "pm.test('O cliente de teste aparece', () => pm.expect(j.map(c => c.id)).to.include(Number(pm.collectionVariables.get('cliente_id'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/?ativo=false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "ativo",
+                  "value": "false"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "13. Apagar o chamado (DELETE) → histórico some junto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{chamado_cliente_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{chamado_cliente_id}}",
+                ""
+              ]
+            },
+            "description": "on_delete=CASCADE: apagar o chamado apaga as interações dele."
+          },
+          "response": []
+        },
+        {
+          "name": "14. A interação sumiu junto (GET → 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found (apagada em cascata com o chamado)', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/interacoes/{{interacao2_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "interacoes",
+                "{{interacao2_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "15. Agora o cliente pode ser excluído (DELETE → 204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204 No Content (sem chamados vinculados, a exclusão é permitida)', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/{{cliente_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "{{cliente_id}}",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "# 4. Clientes e interações (relacionamentos)\n\n## O que esta pasta faz\nMostra que o sistema tem mais do que chamados soltos: um chamado pode pertencer a um **cliente** e ter um **histórico de interações** (os registros de atendimento). É a pasta que explica as **regras de integridade** do banco de dados.\n\n## Como executar\nRode **na ordem 1 → 15**. Cada passo usa IDs guardados pelos anteriores: `{{cliente_id}}`, `{{chamado_cliente_id}}`, `{{interacao_id}}` e `{{interacao2_id}}`.\n\n## Relações do banco\n- **Cliente → Chamados** (um para muitos). O vínculo é **opcional**: chamados sem cliente continuam válidos.\n- **Chamado → Interações** (um para muitos).\n\n## Regras de integridade (o melhor momento da apresentação)\n| Situação | O que a API faz | Por quê |\n|---|---|---|\n| Apagar um cliente que **tem chamados** | **409 Conflict** com mensagem explicando | `PROTECT`: evita chamados órfãos |\n| Apagar um **chamado** que tem interações | **204**, e as interações somem junto | `CASCADE`: o histórico não faz sentido sem o chamado |\n| Apagar o cliente depois que não há mais chamados | **204** | Nada mais depende dele |\n| Usar **PUT** em uma interação | **405** | Decisão de projeto: histórico só se registra, corrige ou remove |\n\n## Passo a passo\n| # | Requisição | Resultado esperado |\n|---|---|---|\n| 1 | Cadastrar cliente | **201**; cliente ativo |\n| 2 | Abrir chamado vinculado ao cliente | **201**; campo `cliente` = ID do cliente |\n| 3 | Listar chamados do cliente | **200**; só 1 chamado |\n| 4 | Registrar interação | **201**; ligada ao chamado |\n| 5 | Listar interações do chamado | **200**; só as desse chamado |\n| 6 | Corrigir interação (PATCH) | **200**; mensagem e tipo novos |\n| 7 | PUT em interação | **405** |\n| 8 | Apagar interação | **204** |\n| 9 | Registrar segunda interação | **201** (para provar o cascade) |\n| 10 | Excluir cliente com chamado | **409** |\n| 11 | Marcar cliente como inativo | **200**; `ativo: false` |\n| 12 | Listar clientes inativos | **200** |\n| 13 | Apagar o chamado | **204**; interações vão junto |\n| 14 | Buscar a interação apagada | **404** |\n| 15 | Excluir o cliente | **204** |\n\n## O que falar\n\"Aqui o banco protege os dados. Tento apagar um cliente que ainda tem chamado e a API responde **409**, em vez de deixar chamados soltos. Já ao apagar um chamado, o histórico dele vai junto. São duas regras diferentes para duas situações diferentes.\"\n"
+    },
+    {
+      "name": "5. Erros e validações (respostas esperadas de falha)",
+      "item": [
+        {
+          "name": "Preparar: criar chamado para testes de erro",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "if (j.id) { pm.collectionVariables.set('erro_id', j.id); track('ids_limpeza', j.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Chamado para testes de erro\",\n  \"descricao\": \"Usado pelos testes da pasta 5.\",\n  \"status\": \"Aberto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST sem título → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta: titulo', () => { pm.expect(j).to.have.property('titulo'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Faltou o título\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST sem descrição → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta: descricao', () => { pm.expect(j).to.have.property('descricao'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Sem descrição\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST com corpo vazio {} → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta: titulo, descricao', () => { pm.expect(j).to.have.property('titulo'); pm.expect(j).to.have.property('descricao'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST com título vazio → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta: titulo', () => { pm.expect(j).to.have.property('titulo'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"\",\n  \"descricao\": \"Título em branco\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST com título curto demais (2 letras) → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta: titulo', () => { pm.expect(j).to.have.property('titulo'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "Regra do serializer: o título precisa ter pelo menos 3 caracteres.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"ab\",\n  \"descricao\": \"Título abaixo do mínimo de 3 caracteres\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST com título de 151 caracteres → 400",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('titulo_longo', 'A'.repeat(151));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request (máximo 150 caracteres)', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta o campo titulo', () => pm.expect(j).to.have.property('titulo'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"{{titulo_longo}}\",\n  \"descricao\": \"Título acima do limite de 150\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST com status inválido → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta: status', () => { pm.expect(j).to.have.property('status'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "Só são aceitos: Aberto, Em andamento, Pendente e Resolvido.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Status inválido\",\n  \"descricao\": \"Status fora da lista permitida.\",\n  \"status\": \"QUALQUER COISA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST com prioridade inválida → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta: prioridade', () => { pm.expect(j).to.have.property('prioridade'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "Só são aceitas: Baixa, Média e Alta.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Prioridade inválida\",\n  \"descricao\": \"Prioridade fora da lista permitida.\",\n  \"prioridade\": \"Urgentíssima\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST com JSON malformado → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request (JSON inválido)', () => pm.response.to.have.status(400));",
+                  "pm.test('Mensagem fala de erro de JSON', () => pm.expect(JSON.stringify(j)).to.include('JSON'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"titulo\": \"[TESTE] JSON quebrado\", \"descricao\": ",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST com Content-Type errado (text/plain) → 415",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 415 Unsupported Media Type', () => pm.response.to.have.status(415));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "titulo=teste",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT incompleto (sem título e descrição) → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400 Bad Request (PUT exige o objeto completo)', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{erro_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{erro_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Resolvido\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET de ID inexistente → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/999999/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "999999",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT em ID inexistente → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/999999/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "999999",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"xyz\",\n  \"descricao\": \"y\",\n  \"status\": \"Aberto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE em ID inexistente → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/999999/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "999999",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST na URL de um chamado → 405",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 405 Method Not Allowed', () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{erro_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{erro_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"xyz\",\n  \"descricao\": \"y\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE na URL da lista → 405",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 405 Method Not Allowed (não dá para apagar tudo de uma vez)', () => pm.response.to.have.status(405));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cliente inválido (nome curto e e-mail errado) → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta nome e email', () => { pm.expect(j).to.have.property('nome'); pm.expect(j).to.have.property('email'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"A\",\n  \"email\": \"isso-nao-e-um-email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Interação inválida (mensagem em branco e tipo inexistente) → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta mensagem e tipo', () => { pm.expect(j).to.have.property('mensagem'); pm.expect(j).to.have.property('tipo'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/interacoes/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "interacoes",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chamado\": {{erro_id}},\n  \"mensagem\": \"   \",\n  \"tipo\": \"Outro\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Chamado com cliente inexistente → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('Erro aponta o campo cliente', () => pm.expect(j).to.have.property('cliente'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Cliente que não existe\",\n  \"descricao\": \"Aponta para um cliente inexistente.\",\n  \"cliente\": 999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "# 5. Erros e validações (respostas esperadas de falha)\n\n## O que esta pasta faz\nTesta o **caminho infeliz**: pedidos errados de propósito. Uma boa API recusa o que está errado com o **código HTTP certo** e uma **mensagem que explica o problema**. Aqui, **o teste passa quando a API recusa**.\n\n## Como executar\nRode na ordem (a primeira cria um chamado de apoio, `{{erro_id}}`). Dá para rodar tudo de uma vez com **Run**. Os testes verificam o código de status e o campo citado no erro.\n\n## Família 4xx (erro de quem pediu)\n| Código | Significa | Onde aparece nesta pasta |\n|---|---|---|\n| **400 Bad Request** | Pedido inválido: campo faltando, valor fora da regra, JSON quebrado | Sem título/descrição, corpo vazio, título vazio, título curto, título de 151 caracteres, status e prioridade inválidos, JSON malformado, PUT incompleto, cliente/interação inválidos |\n| **404 Not Found** | O recurso não existe | GET, PUT e DELETE com ID 999999 |\n| **405 Method Not Allowed** | A URL não aceita esse método | POST na URL de um chamado; DELETE na URL da lista |\n| **415 Unsupported Media Type** | Formato do corpo não aceito | Corpo enviado como `text/plain` |\n\n## Regras de validação que estas requisições provam\n- `titulo` e `descricao` são **obrigatórios**.\n- `titulo` tem de **3 a 150 caracteres**.\n- `status` só aceita: `Aberto`, `Em andamento`, `Pendente`, `Resolvido`.\n- `prioridade` só aceita: `Baixa`, `Média`, `Alta`.\n- `cliente`, quando enviado, precisa existir.\n- Interação: `mensagem` não pode ficar em branco e `tipo` precisa ser um dos valores válidos.\n\n## Exemplo de resposta de erro (400)\n```json\n{\n  \"titulo\": [\"Este campo é obrigatório.\"],\n  \"descricao\": [\"Este campo é obrigatório.\"]\n}\n```\nA chave é o **nome do campo com problema** e o valor é a lista de mensagens, o que permite ao front-end mostrar o erro embaixo do campo certo.\n\n## O que falar\n\"Testar só o que dá certo não basta. Aqui eu mando de propósito dados quebrados e confiro se a API recusa com o código certo. 400 é erro meu no pedido, 404 é 'não existe', 405 é 'esse método não vale aqui'.\"\n"
+    },
+    {
+      "name": "6. Segurança (SQL Injection, XSS, CORS, LGPD)",
+      "item": [
+        {
+          "name": "SQL Injection no campo título",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201: o texto foi aceito como dado comum', () => pm.response.to.have.status(201));",
+                  "pm.test('Foi gravado literalmente, sem executar como comando SQL', () => pm.expect(j.titulo).to.include('DROP TABLE'));",
+                  "if (j.id) track('ids_limpeza', j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "O Django (ORM) usa consultas parametrizadas: o texto vira dado, não comando.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] '; DROP TABLE chamados_chamado; --\",\n  \"descricao\": \"Tentativa de SQL Injection no título.\",\n  \"status\": \"Aberto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Tabela continua existindo após a injeção (GET)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK: a tabela NÃO foi apagada', () => pm.response.to.have.status(200));",
+                  "pm.test('Lista ainda retorna os chamados', () => pm.expect(pm.response.json()).to.be.an('array').that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "SQL Injection na URL (1 OR 1=1) → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found: a API não aceitou o ID malicioso', () => pm.response.to.have.status(404));",
+                  "pm.test('Não vazou lista de chamados', () => pm.expect(pm.response.text()).to.not.include('descricao'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/1%20OR%201=1/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "1%20OR%201=1",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "SQL Injection no filtro ?busca= → lista vazia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test(\"O texto ' OR '1'='1 foi tratado como texto comum: nenhum chamado casou\", () => pm.expect(pm.response.json()).to.eql([]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/?busca='%20OR%20'1'='1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "busca",
+                  "value": "' OR '1'='1"
+                }
+              ]
+            },
+            "description": "Se a busca fosse montada concatenando texto no SQL, isto devolveria TODOS os chamados. Devolve lista vazia."
+          },
+          "response": []
+        },
+        {
+          "name": "XSS: script no campo descrição",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Resposta é JSON (navegador não executa o script)', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json'));",
+                  "pm.test('⚠ Achado: o texto é guardado sem filtro; o front-end precisa escapar ao exibir (o React escapa por padrão)', () => pm.expect(j.descricao).to.include('<script>'));",
+                  "if (j.id) track('ids_limpeza', j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] XSS\",\n  \"descricao\": \"<script>alert('XSS')</script>\",\n  \"status\": \"Aberto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Campos somente leitura não podem ser forçados (id e datas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('ID enviado (9999) foi ignorado', () => pm.expect(j.id).to.not.eql(9999));",
+                  "pm.test('Data enviada (2000) foi ignorada', () => pm.expect(j.data_abertura).to.not.include('2000-01-01'));",
+                  "pm.test('data_atualizacao enviada (2000) foi ignorada', () => pm.expect(j.data_atualizacao).to.not.include('2000-01-01'));",
+                  "if (j.id) track('ids_limpeza', j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Mass assignment\",\n  \"descricao\": \"Tentando forçar id e datas.\",\n  \"id\": 9999,\n  \"data_abertura\": \"2000-01-01T00:00:00Z\",\n  \"data_atualizacao\": \"2000-01-01T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "✔ Corrigido: status inventado agora é recusado (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 400 Bad Request: a API não aceita mais status fora da lista', () => pm.response.to.have.status(400));",
+                  "pm.test('✔ Achado da primeira versão resolvido: status validado (choices)', () => pm.expect(j).to.have.property('status'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "Na primeira versão da API este pedido era aceito (201). Foi corrigido com `choices` no modelo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"[TESTE] Status inválido\",\n  \"descricao\": \"Status fora do padrão.\",\n  \"status\": \"QUALQUER COISA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "✔ CORS restrito: origem desconhecida não é liberada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK (o servidor responde, mas não libera o navegador)', () => pm.response.to.have.status(200));",
+                  "pm.test('✔ Sem Access-Control-Allow-Origin para http://site-qualquer.com', () => pm.expect(pm.response.headers.has('Access-Control-Allow-Origin')).to.be.false);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "http://site-qualquer.com"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "Na primeira versão o CORS estava aberto (`*`). Agora só o front-end React tem permissão."
+          },
+          "response": []
+        },
+        {
+          "name": "✔ CORS: o front-end React (porta 5173) é liberado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('✔ A origem do React recebe permissão', () => pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.eql('http://127.0.0.1:5173'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "http://127.0.0.1:5173"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Preparar: cliente com dados pessoais (POST)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function track(chave, id) {",
+                  "  const l = JSON.parse(pm.collectionVariables.get(chave) || '[]');",
+                  "  l.push(id);",
+                  "  pm.collectionVariables.set(chave, JSON.stringify(l));",
+                  "}",
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "if (j.id) { pm.collectionVariables.set('seg_cliente_id', j.id); track('clientes_limpeza', j.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"[TESTE] Maria da Silva\",\n  \"email\": \"maria.silva@exemplo.com\",\n  \"telefone\": \"19 98888-7777\",\n  \"empresa\": \"Mercearia Silva\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "⚠ LGPD: dados pessoais legíveis sem login (GET)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {};",
+                  "try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('⚠ Achado: e-mail e telefone foram devolvidos sem nenhuma autenticação', () => { pm.expect(j.email).to.eql('maria.silva@exemplo.com'); pm.expect(j.telefone).to.eql('19 98888-7777'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/{{seg_cliente_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "{{seg_cliente_id}}",
+                ""
+              ]
+            },
+            "description": "Não envia token nem usuário. E-mail e telefone são dados pessoais (LGPD): em produção exigiriam login e controle de acesso."
+          },
+          "response": []
+        },
+        {
+          "name": "⚠ Sem autenticação: qualquer um apaga (DELETE sem login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('⚠ Achado: DELETE funcionou sem login nenhum (204)', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/{{erro_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                "{{erro_id}}",
+                ""
+              ]
+            },
+            "description": "Não envia nenhum token/usuário. Próxima melhoria do projeto: autenticação."
+          },
+          "response": []
+        },
+        {
+          "name": "Cabeçalhos de segurança do Django",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('X-Content-Type-Options: nosniff', () => pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff'));",
+                  "pm.test('X-Frame-Options presente (anti-clickjacking)', () => pm.expect(pm.response.headers.has('X-Frame-Options')).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "# 6. Segurança (SQL Injection, XSS, CORS, LGPD)\n\n## O que esta pasta faz\nLiga a API ao tema de **cibersegurança**. São ataques simples simulados pelo Postman para ver como a API se comporta. Os itens marcados com **✔** são problemas da primeira versão que **já foram corrigidos**; os marcados com **⚠** são **achados de auditoria**: o teste passa por **registrar o comportamento atual**, que ainda é um ponto de melhoria.\n\n## Como executar\nRode na ordem (o DELETE sem login usa o `{{erro_id}}` criado na pasta 5, então rode a pasta 5 antes ou a coleção inteira).\n\n## Resultado resumido\n| Teste | Situação | O que aconteceu |\n|---|---|---|\n| SQL Injection no título | Protegido | O texto foi gravado como dado comum; a tabela continua lá |\n| SQL Injection na URL (`1 OR 1=1`) | Protegido | **404**, nada vazou |\n| SQL Injection no filtro `?busca=` | Protegido | Lista vazia: o filtro tratou o texto como texto |\n| XSS (`<script>` na descrição) | ⚠ Atenção | A API guarda o texto como veio; quem exibe precisa **escapar**. O front React escapa por padrão |\n| Forçar `id` e datas (mass assignment) | Protegido | Campos somente leitura foram ignorados |\n| Status inventado | ✔ **Corrigido** | Antes: 201. Agora: **400** |\n| CORS | ✔ **Corrigido** | Antes: liberado para qualquer site (`*`). Agora: só o React (porta 5173) |\n| Dados pessoais de cliente sem login | ⚠ Atenção (LGPD) | E-mail e telefone saem sem autenticação |\n| DELETE sem login | ⚠ Atenção | Qualquer um apaga chamados |\n| Cabeçalhos de segurança | Protegido | `nosniff` e `X-Frame-Options` presentes |\n\n## Conceitos em uma frase\n- **SQL Injection**: tentar enganar o banco com comandos SQL escondidos em um campo. O ORM do Django evita isso porque separa o comando dos dados.\n- **XSS**: esconder um `<script>` em um texto para ele rodar no navegador de quem abrir a tela.\n- **CORS**: regra do navegador sobre quais sites podem chamar a API. **O Postman não é afetado por CORS**, o navegador é.\n- **LGPD**: lei brasileira de proteção de dados pessoais. Exige controle de acesso a e-mail, telefone e afins.\n\n## Próximas melhorias (decorrem dos ⚠)\n1. Exigir autenticação (login/token) para criar, alterar e apagar.\n2. Restringir quem lê dados pessoais de clientes.\n3. Em produção: `DEBUG = False`, chave secreta fora do código e HTTPS.\n\n## O que falar\n\"Eu uso o Postman também como ferramenta de auditoria. O ataque de SQL Injection foi barrado. Dois problemas que o teste achou na primeira versão (status livre e CORS aberto) eu corrigi e deixei os testes confirmando. Ainda falta autenticação, e isso eu registro como próximo passo.\"\n"
+    },
+    {
+      "name": "7. Limpeza",
+      "item": [
+        {
+          "name": "Apagar chamados de teste e conferir (GET)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ids = JSON.parse(pm.collectionVariables.get('ids_limpeza') || '[]');",
+                  "const base = pm.collectionVariables.get('base_url');",
+                  "ids.forEach(id => pm.sendRequest({ url: base + '/api/chamados/' + id + '/', method: 'DELETE' }, () => {}));",
+                  "pm.collectionVariables.set('ids_limpeza', '[]');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Nenhum chamado [TESTE] sobrou no banco', () => pm.expect(pm.response.json().filter(c => c.titulo.startsWith('[TESTE]'))).to.be.empty);",
+                  "pm.test('Chamados originais continuam intactos', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chamados/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chamados",
+                ""
+              ]
+            },
+            "description": "Apaga os chamados criados pelos testes e confere que nenhum [TESTE] sobrou."
+          },
+          "response": []
+        },
+        {
+          "name": "Apagar clientes de teste e conferir (GET)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ids = JSON.parse(pm.collectionVariables.get('clientes_limpeza') || '[]');",
+                  "const base = pm.collectionVariables.get('base_url');",
+                  "ids.forEach(id => pm.sendRequest({ url: base + '/api/clientes/' + id + '/', method: 'DELETE' }, () => {}));",
+                  "pm.collectionVariables.set('clientes_limpeza', '[]');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Nenhum cliente [TESTE] sobrou no banco', () => pm.expect(pm.response.json().filter(c => c.nome.startsWith('[TESTE]'))).to.be.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/clientes/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                ""
+              ]
+            },
+            "description": "Os clientes só podem ser apagados depois dos chamados deles (regra 409), por isso vêm em segundo."
+          },
+          "response": []
+        }
+      ],
+      "description": "# 7. Limpeza\n\n## O que esta pasta faz\nApaga **tudo o que a própria coleção criou** (itens com o prefixo `[TESTE]`), para o banco ficar como estava antes. **Os chamados e clientes originais não são tocados.**\n\n## Como executar\nRode **por último** (ou use **Run** na coleção inteira, que já passa por aqui no final). A ordem das duas requisições importa:\n1. **Chamados primeiro.** Enquanto um cliente tiver chamados, a API não deixa apagá-lo (409).\n2. **Clientes depois.**\n\n## Como funciona\nCada POST dos testes anota o ID criado em uma variável da coleção (`ids_limpeza` para chamados e `clientes_limpeza` para clientes). A limpeza lê essas listas, manda um DELETE para cada ID e zera as variáveis. Em seguida, a requisição GET confere que nenhum `[TESTE]` sobrou.\n\n## Se algo interromper a execução\nAs listas ficam guardadas nas variáveis da coleção. Basta rodar esta pasta depois para limpar o que ficou.\n\n## O que falar\n\"No final eu deixo o ambiente limpo. A coleção só apaga o que ela mesma criou.\"\n"
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "chamado_id",
+      "value": "1"
+    },
+    {
+      "key": "teste_id",
+      "value": "1"
+    },
+    {
+      "key": "erro_id",
+      "value": "1"
+    },
+    {
+      "key": "filtro_id",
+      "value": "1"
+    },
+    {
+      "key": "cliente_id",
+      "value": "1"
+    },
+    {
+      "key": "seg_cliente_id",
+      "value": "1"
+    },
+    {
+      "key": "chamado_cliente_id",
+      "value": "1"
+    },
+    {
+      "key": "interacao_id",
+      "value": "1"
+    },
+    {
+      "key": "interacao2_id",
+      "value": "1"
+    },
+    {
+      "key": "ids_limpeza",
+      "value": "[]"
+    },
+    {
+      "key": "clientes_limpeza",
+      "value": "[]"
+    },
+    {
+      "key": "titulo_longo",
+      "value": ""
+    }
+  ]
+}
