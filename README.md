@@ -116,7 +116,7 @@ Exemplo de criação de interação:
 13. No Postman, enviar **Excluir chamado** (`204 No Content`).
 14. Atualizar o sistema e mostrar que o cartão desapareceu.
 
-Dica: a chave **Atualização automática (15 s)** no topo busca os dados sozinha, sem piscar a tela. Ela começa desligada para você controlar o momento da demonstração.
+
 
 ## Como o front-end funciona
 
